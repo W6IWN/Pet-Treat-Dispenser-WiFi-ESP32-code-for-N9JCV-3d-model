@@ -1,0 +1,65 @@
+// ESP32 code by W6IWN for the Pet Feeder Treat Dispenser Web App Enabled by N9JCV https://www.thingiverse.com/thing:4735235
+
+#define BLYNK_PRINT Serial
+#define BLYNK_TEMPLATE_ID "YOUR TEMPLATE ID"
+#define BLYNK_TEMPLATE_NAME "YOUR TEMPLATE NAME"
+#define BLYNK_AUTH_TOKEN "YOUR Blynk Auth Token"
+#include <ESP8266WiFi.h>
+#include <BlynkSimpleEsp8266.h>
+#include <AccelStepper.h>
+
+// Blynk authentication
+char auth[] = "YOUR Blynk Auth Token";
+char ssid[] = "YOUR WIFI NAME";
+char pass[] = "YOUR WIFI PASSWORD";
+
+// Define L9110S stepper motor connections
+#define IN1 D1  // Connect to L9110S A-IA
+#define IN2 D2  // Connect to L9110S A-IB
+#define IN3 D3  // Connect to L9110S B-IA
+#define IN4 D4  // Connect to L9110S B-IB
+
+#define STEPS_PER_REV 2048  // Steps per revolution for 28BYJ-48 motor
+#define COMPARTMENTS 8
+#define STEPS_PER_COMPARTMENT (STEPS_PER_REV / COMPARTMENTS)
+
+AccelStepper stepper(AccelStepper::FULL4WIRE, IN1, IN3, IN2, IN4);
+
+bool moving = false;  // Track motor movement
+
+BLYNK_WRITE(V1) {  // Virtual button on Blynk app
+    if (param.asInt() && !moving) {  // If button is pressed and motor is idle
+        stepper.move(STEPS_PER_COMPARTMENT);
+        moving = true;
+    }
+}
+
+void setup() {
+    Serial.begin(115200);
+    
+    // Connect to WiFi
+    WiFi.begin(ssid, pass);
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(500);
+        Serial.print(".");
+    }
+    Serial.println("\nConnected to WiFi");
+
+    Blynk.config(auth);
+    Blynk.connect();
+    
+    stepper.setMaxSpeed(1000);
+    stepper.setAcceleration(500);
+}
+
+void loop() {
+    Blynk.run();
+    
+    if (moving) {
+        stepper.run();
+        if (stepper.distanceToGo() == 0) {
+            moving = false;
+            Blynk.logEvent("treat_dispensed");  // Send notification
+        }
+    }
+}
